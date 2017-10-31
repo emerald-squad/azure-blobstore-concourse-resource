@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby
 
+require 'azure/storage'
 require 'fileutils'
 require_relative 'azure-blobstore-concourse-resource-common'
 
@@ -15,18 +16,8 @@ requested_path = request["version"]["path"]
 
 check_source
 
-dest_dir = ARGV[0]
-Dir.chdir(dest_dir)
-basename = File.basename(requested_path)
-response = azure_cli("download --quiet --container #{@container} --destination #{basename} --blob #{requested_path}")
+properties = download_file(ARGV[0],requested_path)
 metadata = []
-response.each_pair {|k,v| metadata << {"name"=> k.to_s, "value"=>v.to_s }  }
+properties.each_pair {|k,v| metadata << {"name"=> k.to_s, "value"=>v.to_s }  }
 
-version = requested_path.match(@regexp)[1]
-File.open(File.join(dest_dir, "version"), "w+") do |f|
-  f.write("#{version}")
-end
-
-puts JSON.dump({ "version" => { "path" => requested_path},
-                 "metadata" => metadata
-                })
+puts JSON.dump({ "version" => { "path" => requested_path}, "metadata" => metadata })

@@ -1,0 +1,27 @@
+resources:
+- name: azure-blobstore-concourse-resource-source
+  type: git
+  source:
+    uri: https://github.com/emerald-squad/azure-blobstore-concourse-resource.git
+    branch: 'master'
+
+- name: docker-hub
+  type: docker-image
+  source:
+    repository: emeraldsquad/artifactory-resource
+    username: {{docker-hub-username}}
+    password: {{docker-hub-password}}
+
+jobs:
+- name: publish
+  plan:
+  - aggregate:
+    - get: azure-blobstore-concourse-resource-source
+      trigger: true
+  - task: get-version
+    file: azure-blobstore-concourse-resource-source/ci/tasks/get-version.yml
+  - put: docker-hub
+    params:
+      build: azure-blobstore-concourse-resource-source
+      tag: version/version
+      tag_as_latest: true

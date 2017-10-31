@@ -27,10 +27,45 @@ def check_source
   end
 end
 
-def azure_cli(cmd)
-  conn_str = "BlobEndpoint=https://#{@storage_account_name}.#{@endpoint}"
-  if @storage_access_key
-    conn_str += ";AccountName=#{@storage_account_name};AccountKey=#{@storage_access_key}"
+def get_names_and_versions
+  client = Azure::Storage::Client.create(:storage_account_name => "#{@storage_account_name}", :storage_access_key => "#{@storage_access_key}")
+  
+  blob_client = client.blob_client
+  blobs = blob_client.list_blobs("#{@container}")
+
+  files = blobs.map {|blob| blob.name}
+  matched_files = files.select {|file| file.match @regexp}
+
+  names_and_versions = matched_files.map do |matched_file|
+      version = matched_file.match(@regexp)[1]
+      { "filename" => matched_file, "version" => version  }
   end
-  return JSON.parse(`azure storage blob #{cmd} -c '#{conn_str}' --json`)
+
+  names_and_versions.reject! { |h| h["version"].match(/[^0-9\.]/) }
+  names_and_versions.sort! { |a,b| Gem::Version.new(a["version"]) <=> Gem::Version.new(b["version"])  }
+end
+
+def download_file(dest_dir,requested_path)
+  client = Azure::Storage::Client.create(:storage_account_name => "#{@storage_account_name}", :storage_access_key => "#{@storage_access_key}")
+  
+  blob_client = client.blob_client
+
+  blob, content = blob_client.get_blob("#{@container}", requested_path)
+  ::File.open(File.join(dest_dir, blob.name), 'wb') {|f| f.write(content)}
+
+  version = requested_path.match(@regexp)[1]
+  ::File.open(File.join(dest_dir, "version"), "w+") {|f| f.write("#{version}")}
+
+  blob.properties.delete_if {|key, value| value.nil? }
+end
+
+def upload_file(src_file,dst_path)
+  client = Azure::Storage::Client.create(:storage_account_name => @storage_account_name, :storage_access_key => @storage_access_key)
+  
+  blob_client = client.blob_client
+
+  content = ::File.open(src_file, 'rb') { |file| file.read }
+  blob = blob_client.create_block_blob(@container, dst_path, content)
+  
+  blob.properties.delete_if {|key, value| value.nil? }
 end

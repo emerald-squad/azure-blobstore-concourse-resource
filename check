@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby
 
+require 'azure/storage'
 require_relative "azure-blobstore-concourse-resource-common"
 
 request = JSON.parse(STDIN.read)
@@ -16,23 +17,13 @@ requested_path = version_key ? version_key["path"] : nil
 
 check_source
 
-azure_response = azure_cli("list #{@container}")
-files = azure_response.map {|f| f['name']}
-matched_files = files.select {|f| f.match @regexp}
-
-names_and_versions = matched_files.map do |f|
-  version = f.match(@regexp)[1]
-  { "filename" => f, "version" => version  }
-end
-
-names_and_versions.reject! { |h| h["version"].match(/[^0-9\.]/) }
-names_and_versions.sort! { |a,b| Gem::Version.new(a["version"]) <=> Gem::Version.new(b["version"])  }
+names_and_versions = get_names_and_versions
 
 if requested_path.nil?
   # return latest
   puts [ {"path" => names_and_versions.last["filename"]  } ].to_json
 elsif ! names_and_versions.find {|h| h["filename"] == requested_path }
-# if requested path not found, return empty array
+  # if requested path not found, return empty array
   puts [].to_json
 else
   index = names_and_versions.index {|h| h["filename"] == requested_path }

@@ -1,5 +1,7 @@
 #!/usr/bin/env ruby
 
+require 'azure/storage'
+require 'fileutils'
 require_relative 'azure-blobstore-concourse-resource-common'
 
 request = JSON.parse(STDIN.read)
@@ -20,6 +22,7 @@ elsif src_files.size == 0
 end
 
 src_file = src_files.first
+
 @storage_account_name = source["storage_account_name"]
 @storage_access_key = source["storage_access_key"]
 @container = source["container"]
@@ -40,9 +43,7 @@ else
   dst_path = File.basename(src_file)
 end
 
-response = azure_cli("upload --quiet --container #{@container} --blob #{dst_path} --file #{src_file}")
+properties = upload_file(src_file,dst_path)
 metadata = []
-response.each_pair {|k,v| metadata << {"name"=> k.to_s, "value"=>v.to_s }  }
-puts JSON.dump({ "version" => { "path" => dst_path },
-                 "metadata" => metadata
-                })
+properties.each_pair {|k,v| metadata << {"name"=> k.to_s, "value"=>v.to_s }  }
+puts JSON.dump({ "version" => { "path" => dst_path }, "metadata" => metadata })
